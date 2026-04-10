@@ -3,8 +3,8 @@
 #include <Temperature_LM75_Derived.h>
 
 // #define USE_ONBOARD_TEMP_SENSOR
-#define USE_EXTERNAL_ADC_WITH_TIMER
-// #define USE_EXTERNAL_ADC_WITH_ISR
+// #define USE_EXTERNAL_ADC_WITH_TIMER
+#define USE_EXTERNAL_ADC_WITH_ISR
 // #define USE_INTERNAL_ADC
 
 #define BUTTON1 PB3
@@ -16,10 +16,8 @@
 #define ISO_OUTPUT PA12
 #define ISO_INPUT PA11
 
-// Internal ADC pins
-#define SDA_PIN PB9
-#define SCL_PIN PB8
-//#define RDY_PIN PA15
+// External ADC pins
+#define RDY_PIN PA15
 
 #define READ_TEMP_PERIOD_SECONDS 10
 #define READ_ADC_PERIOD_MICROSECONDS 1000
@@ -27,19 +25,25 @@
 // Function prototype
 void readTempIsr();
 void readAdcIsr();
-void NewDataReadyISR();
 
-TwoWire wire_tempeture(PB9, PB8);
-Adafruit_ADS1115 ads;  /* Use this for the 16-bit version */
-Generic_LM75 temperature(&wire_tempeture);
+TwoWire wire(PB9, PB8); /* Fios do I2C */
+Adafruit_ADS1115 ads;
+Generic_LM75 temperature(&wire);
 HardwareSerial serial1(PA10, PA9);
 
+uint32_t tempo_anterior = millis();
+uint8_t  estado_LEDS = 0; /* Controla o estado dos LEDS */
+
 #ifdef USE_EXTERNAL_ADC_WITH_ISR
-bool new_data = false;
+volatile bool new_data = false;
+#endif
+
+#ifdef USE_EXTERNAL_ADC_WITH_TIMER
+volatile bool new_data = false;
 #endif
 
 void setup() {
-  Serial.begin(9600);
+  serial1.begin(9600);
   
   // Print Header
   serial1.println("...............................");
@@ -70,7 +74,7 @@ void setup() {
   pinMode(LED3, OUTPUT);
   pinMode(ISO_OUTPUT, OUTPUT);
 
-  if (!ads.begin(ADS1X15_ADDRESS, &wire_tempeture)) {
+  if (!ads.begin(ADS1X15_ADDRESS, &wire)) {
     Serial.println("Failed to initialize ADS.");
     while (1);
   }
@@ -93,24 +97,56 @@ void setup() {
 
   #ifdef USE_EXTERNAL_ADC_WITH_ISR
     pinMode(RDY_PIN, INPUT);
-    attachInterrupt(digitalPinToInterrupt(RDY_PIN), NewDataReadyISR, RISING);
+    attachInterrupt(digitalPinToInterrupt(RDY_PIN), readAdcIsr, RISING);
     
     ads.startADCReading(ADS1X15_REG_CONFIG_MUX_DIFF_0_1, true);
   #endif
+
+  // Tensão inicial dos LEDs
+  digitalWrite(LED1, HIGH);
+  digitalWrite(LED2, HIGH);
+  digitalWrite(LED3, LOW);
+
+  
 }
 
 // put your main code here, to run repeatedly:
 void loop() {
   // control LED
-  digitalWrite(LED1, HIGH);
-  digitalWrite(LED3, LOW);
-  delay(1000);
-  digitalWrite(LED2, HIGH);
-  digitalWrite(LED1, LOW);
-  delay(1000);
-  digitalWrite(LED3, HIGH);
-  digitalWrite(LED2, LOW);
-  delay(1000);
+  uint32_t tempo_atual = millis();
+
+  if(tempo_atual - tempo_anterior > 1000) {
+    switch (estado_LEDS)
+    {
+    case 0:
+      digitalWrite(LED1, HIGH);
+      digitalWrite(LED3, LOW);
+
+      estado_LEDS = 1;
+
+      break;
+    case 1:
+      digitalWrite(LED2, HIGH);
+      digitalWrite(LED1, LOW);
+
+      estado_LEDS = 2;
+
+      break;
+
+    case 2:
+      digitalWrite(LED3, HIGH);
+      digitalWrite(LED2, LOW);
+
+      estado_LEDS = 0;
+
+      break;
+    
+    default:
+      estado_LEDS = 0;
+
+      break;
+    }
+  }
 
   #ifdef USE_EXTERNAL_ADC_WITH_ISR
   if(!new_data) {
@@ -118,8 +154,44 @@ void loop() {
   } 
 
   int16_t results = ads.getLastConversionResults();
+  float volt_ads = ads.computeVolts(results);
 
-  Serial.print("Differential: "); Serial.print(results); Serial.print("("); Serial.print(ads.computeVolts(results)); Serial.println("V)");
+  constexpr uint16_t R4  = 1130;
+  constexpr uint16_t R5  = 11300;
+  constexpr uint16_t R13 = 1210;
+  constexpr uint16_t R0  = 100;
+
+  constexpr float Vref = 2.5f;
+  constexpr float Ganho_diferencial = 10.0f;
+
+  // Vp = Vref * R/(R + R4);
+  constexpr float Vn = Vref * R13/(R13 + R5);
+
+  // Volt_ads = Ganho_diferencial*(Vp - Vn)
+  // Vp = Volt_ads/Ganho_diferencial + Vn
+  // R/(R + R4) = (Volt_ads/Ganho_diferencial + Vn)/Vref == aux
+
+  float aux = (volt_ads/Ganho_diferencial + Vn)/Vref;
+  float resistencia = R4*aux/(1 - aux);
+
+  // Por interpolação linear 
+  constexpr float cnt_A = 3.9083e-3f;
+  float tempeture = (resistencia - R0)/cnt_A; 
+
+  serial1.print("Valor: "); 
+  serial1.println(results); 
+
+  serial1.print("Tensão: "); 
+  serial1.print(volt_ads); 
+  serial1.println(" mV");
+
+  serial1.print("Resistencia: "); 
+  serial1.print(resistencia); 
+  serial1.println(" Ohm");
+
+  serial1.print("Temperatura: "); 
+  serial1.print(tempeture); 
+  serial1.println(" °C");
 
   new_data = false;
 
@@ -137,17 +209,11 @@ void readTempIsr() {
 // ISR to read ADC measurement
 void readAdcIsr() {
   #ifdef USE_EXTERNAL_ADC_WITH_TIMER
-  int16_t adcResult;
+  new_data = true;
+  #endif
 
-  const float adcScaling =  0.015625F; /* ADS1115  @ +/- 0.512 V gain (16-bit results) */
-
-  adcResult = ads.readADC_Differential_0_1();
-
-  Serial.print("Differential: "); 
-  Serial.print(adcResult); 
-  Serial.print("("); 
-  Serial.print(adcResult * adcScaling); Serial.println("mV)");
-
+  #ifdef USE_EXTERNAL_ADC_WITH_ISR
+  new_data = true;
   #endif
 
   #ifdef USE_INTERNAL_ADC
@@ -155,11 +221,5 @@ void readAdcIsr() {
 
   serial1.print("PA2: "); 
   serial1.println(adcResult); 
-  #endif
-}
-
-void NewDataReadyISR(){
-  #ifdef USE_EXTERNAL_ADC_WITH_ISR
-  bool new_data = true;
   #endif
 }
