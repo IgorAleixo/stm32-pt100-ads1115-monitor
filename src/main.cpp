@@ -25,6 +25,7 @@
 // Function prototype
 void readTempIsr();
 void readAdcIsr();
+float CVD_inverse(float R);
 
 TwoWire wire(PB9, PB8); /* Fios do I2C */
 Adafruit_ADS1115 ads;
@@ -159,7 +160,6 @@ void loop() {
   constexpr uint16_t R4  = 1130;
   constexpr uint16_t R5  = 11300;
   constexpr uint16_t R13 = 1210;
-  constexpr uint16_t R0  = 100;
 
   constexpr float Vref = 2.5f;
   constexpr float Ganho_diferencial = 10.0f;
@@ -175,8 +175,7 @@ void loop() {
   float resistencia = R4*aux/(1 - aux);
 
   // Por interpolação linear 
-  constexpr float cnt_A = 3.9083e-3f;
-  float tempeture = (resistencia - R0)/cnt_A; 
+  float tempeture = CVD_inverse(resistencia); 
 
   serial1.print("Valor: "); 
   serial1.println(results); 
@@ -222,4 +221,20 @@ void readAdcIsr() {
   serial1.print("PA2: "); 
   serial1.println(adcResult); 
   #endif
+}
+
+// Função inversa da equação de Callendar-Van Dusen(CVD)
+float CVD_inverse(float R) {
+  constexpr float cnt_A = 3.9083e-3f;
+  constexpr float cnt_B = -5.775e-7f;
+  constexpr float cnt_C = -4.183e-12f;
+  
+  constexpr uint16_t R0  = 100;
+
+  constexpr float a = cnt_B * R0; 
+  constexpr float b = cnt_A * R0;
+  
+  float c = R0 - R;
+
+  return (-b + sqrt(b*b - 4*a*c))/(2*a);
 }
