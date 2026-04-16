@@ -3,8 +3,8 @@
 #include <Temperature_LM75_Derived.h>
 
 // #define USE_ONBOARD_TEMP_SENSOR
-#define USE_EXTERNAL_ADC_WITH_TIMER
-// #define USE_EXTERNAL_ADC_WITH_ISR
+// #define USE_EXTERNAL_ADC_WITH_TIMER
+#define USE_EXTERNAL_ADC_WITH_ISR
 // #define USE_INTERNAL_ADC   // TODO
 
 #define BUTTON1 PB3
@@ -59,7 +59,7 @@ void setup() {
   //                                                                ADS1015  ADS1115
   //                                                                -------  -------
   // ads.setGain(GAIN_TWOTHIRDS);  // 2/3x gain +/- 6.144V  1 bit = 3mV      0.1875mV (default)
-   ads.setGain(GAIN_ONE);        // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
+  ads.setGain(GAIN_ONE);        // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
   // ads.setGain(GAIN_TWO);        // 2x gain   +/- 2.048V  1 bit = 1mV      0.0625mV
   // ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.5mV    0.03125mV
   // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
@@ -211,7 +211,7 @@ void writeData(int16_t value, float voltage, float resistence, float tempeture) 
 
   serial1.print("Tensão: "); 
   serial1.print(voltage); 
-  serial1.println(" mV");
+  serial1.println(" V");
 
   serial1.print("Resistencia: "); 
   serial1.print(resistence); 
@@ -240,7 +240,13 @@ float computeResist(float volt_ads) {
 
   float aux = ((volt_ads - Vref)/Ganho_diferencial + Vn)/Vref;
   
-  return R4*aux/(1 - aux);
+  float resistence = R4*aux/(1 - aux);
+
+  // Fatores de calibragem
+  constexpr float A = 0.9182602607f;
+  constexpr float B = 9.974427365f;
+
+  return (resistence - B)/A;
 }
 
 // Função inversa da equação de Callendar-Van Dusen(CVD)
