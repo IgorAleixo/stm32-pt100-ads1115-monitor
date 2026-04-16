@@ -5,7 +5,7 @@
 // #define USE_ONBOARD_TEMP_SENSOR
 // #define USE_EXTERNAL_ADC_WITH_TIMER
 #define USE_EXTERNAL_ADC_WITH_ISR
-// #define USE_INTERNAL_ADC
+// #define USE_INTERNAL_ADC   // TODO
 
 #define BUTTON1 PB3
 #define BUTTON2 PB4
@@ -76,7 +76,7 @@ void setup() {
   pinMode(ISO_OUTPUT, OUTPUT);
 
   if (!ads.begin(73U, &wire)) {
-    Serial.println("Failed to initialize ADS.");
+    serial1.println("Failed to initialize ADS.");
     while (1);
   }
 
@@ -213,13 +213,6 @@ void readAdcIsr() {
 
   #ifdef USE_EXTERNAL_ADC_WITH_ISR
   new_data = true;
-  #endif
-
-  #ifdef USE_INTERNAL_ADC
-  adcResult = analogRead(PA2);
-
-  serial1.print("PA2: "); 
-  serial1.println(adcResult); 
   #endif
 }
 
