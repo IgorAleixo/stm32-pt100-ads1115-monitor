@@ -3,8 +3,8 @@
 #include <Temperature_LM75_Derived.h>
 
 // #define USE_ONBOARD_TEMP_SENSOR
-#define USE_EXTERNAL_ADC_WITH_TIMER
-// #define USE_EXTERNAL_ADC_WITH_ISR
+// #define USE_EXTERNAL_ADC_WITH_TIMER
+#define USE_EXTERNAL_ADC_WITH_ISR
 // #define USE_INTERNAL_ADC   // TODO
 
 #define BUTTON1 PB3
@@ -35,6 +35,8 @@ HardwareSerial serial1(PA10, PA9);
 uint32_t tempo_anterior = millis();
 uint8_t  estado_LEDS = 0; /* Controla o estado dos LEDS */
 
+int16_t results = 0;
+
 #ifdef USE_EXTERNAL_ADC_WITH_ISR
 volatile bool new_data = false;
 #endif
@@ -57,10 +59,10 @@ void setup() {
   //                                                                ADS1015  ADS1115
   //                                                                -------  -------
   // ads.setGain(GAIN_TWOTHIRDS);  // 2/3x gain +/- 6.144V  1 bit = 3mV      0.1875mV (default)
-  // ads.setGain(GAIN_ONE);        // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
+   ads.setGain(GAIN_ONE);        // 1x gain   +/- 4.096V  1 bit = 2mV      0.125mV
   // ads.setGain(GAIN_TWO);        // 2x gain   +/- 2.048V  1 bit = 1mV      0.0625mV
   // ads.setGain(GAIN_FOUR);       // 4x gain   +/- 1.024V  1 bit = 0.5mV    0.03125mV
-     ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
+  // ads.setGain(GAIN_EIGHT);      // 8x gain   +/- 0.512V  1 bit = 0.25mV   0.015625mV
   // ads.setGain(GAIN_SIXTEEN);    // 16x gain  +/- 0.256V  1 bit = 0.125mV  0.0078125mV
 
   // Button Digital outputs
@@ -100,15 +102,13 @@ void setup() {
     pinMode(RDY_PIN, INPUT);
     attachInterrupt(digitalPinToInterrupt(RDY_PIN), readAdcIsr, RISING);
     
-    ads.startADCReading(ADS1X15_REG_CONFIG_MUX_DIFF_0_1, true);
+    ads.startADCReading(ADS1X15_REG_CONFIG_MUX_SINGLE_0, true);
   #endif
 
   // Tensão inicial dos LEDs
   digitalWrite(LED1, HIGH);
   digitalWrite(LED2, HIGH);
-  digitalWrite(LED3, LOW);
-
-  
+  digitalWrite(LED3, LOW);  
 }
 
 // put your main code here, to run repeatedly:
@@ -116,7 +116,7 @@ void loop() {
   // control LED
   uint32_t tempo_atual = millis();
 
-  if(tempo_atual - tempo_anterior > 200) {
+  if(tempo_atual - tempo_anterior > 1000) {
     switch (estado_LEDS)
     {
     case 0:
@@ -154,7 +154,9 @@ void loop() {
     return;
   } 
 
-  int16_t results = ads.getLastConversionResults();
+  results = ads.getLastConversionResults();
+  results = 0;
+  results = ads.getLastConversionResults();
   float volt_ads = ads.computeVolts(results);
 
   constexpr uint16_t R4  = 1130;
@@ -171,7 +173,7 @@ void loop() {
   // Vp = Volt_ads/Ganho_diferencial + Vn
   // R/(R + R4) = (Volt_ads/Ganho_diferencial + Vn)/Vref == aux
 
-  float aux = (volt_ads/Ganho_diferencial + Vn)/Vref;
+  float aux = ((volt_ads - Vref)/Ganho_diferencial + Vn)/Vref;
   float resistencia = R4*aux/(1 - aux);
 
   // Por interpolação linear 
