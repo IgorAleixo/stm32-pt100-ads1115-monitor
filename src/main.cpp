@@ -3,8 +3,8 @@
 #include <Temperature_LM75_Derived.h>
 
 // #define USE_ONBOARD_TEMP_SENSOR
-// #define USE_EXTERNAL_ADC_WITH_TIMER
-#define USE_EXTERNAL_ADC_WITH_ISR
+#define USE_EXTERNAL_ADC_WITH_TIMER
+// #define USE_EXTERNAL_ADC_WITH_ISR
 // #define USE_INTERNAL_ADC   // TODO
 
 #define BUTTON1 PB3
@@ -116,7 +116,7 @@ void loop() {
   // control LED
   uint32_t tempo_atual = millis();
 
-  if(tempo_atual - tempo_anterior > 1000) {
+  if(tempo_atual - tempo_anterior > 200) {
     switch (estado_LEDS)
     {
     case 0:
@@ -190,7 +190,7 @@ void loop() {
 
   serial1.print("Temperatura: "); 
   serial1.print(tempeture); 
-  serial1.println(" °C");
+  serial1.println(" C");
 
   new_data = false;
 
