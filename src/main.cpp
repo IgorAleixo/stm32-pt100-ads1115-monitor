@@ -75,7 +75,7 @@ void setup() {
   pinMode(LED3, OUTPUT);
   pinMode(ISO_OUTPUT, OUTPUT);
 
-  if (!ads.begin(ADS1X15_ADDRESS, &wire)) {
+  if (!ads.begin(73U, &wire)) {
     Serial.println("Failed to initialize ADS.");
     while (1);
   }
