@@ -239,6 +239,8 @@ float computeResist(float volt_ads) {
   // Vp = Volt_ads/Ganho_diferencial + Vn
   // R/(R + R4) = (Volt_ads/Ganho_diferencial + Vn)/Vref == aux
 
+  // Antes da medição, existe um amplificador diferencial 
+  // com ganho 10 (INA143).
   float aux = ((volt_ads - Vref)/Ganho_diferencial + Vn)/Vref;
   
   float resistence = R4*aux/(1 - aux);
