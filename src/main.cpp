@@ -33,7 +33,8 @@ Adafruit_ADS1115 ads;
 Generic_LM75 temperature(&wire);
 HardwareSerial serial1(PA10, PA9);
 
-uint32_t tempo_anterior = millis();
+uint32_t tempo_anterior_blink = millis();
+uint32_t tempo_anterior_serial_print = millis();
 uint8_t  estado_LEDS = 0; /* Controla o estado dos LEDS */
 
 #ifdef USE_EXTERNAL_ADC_WITH_ISR
@@ -115,14 +116,16 @@ void loop() {
   // control LED
   uint32_t tempo_atual = millis();
 
-  if(tempo_atual - tempo_anterior > 1000) {
+  if(tempo_atual - tempo_anterior_blink > 1000) {
     blinkLED();
   }
 
   #ifdef USE_EXTERNAL_ADC_WITH_ISR
   if(!new_data) {
     return;
-  } 
+  } else if (tempo_atual - tempo_anterior_serial_print < 1000) {
+    return;
+  }
 
   int16_t results = ads.getLastConversionResults();
   float volt_ads = ads.computeVolts(results);
@@ -131,13 +134,15 @@ void loop() {
 
   new_data = false;
 
-  delay(1000); // Evitar muitos dados no terminal
+  tempo_anterior_serial_print = tempo_atual;
   #endif
 
   #ifdef USE_EXTERNAL_ADC_WITH_TIMER
   if(!new_data) {
     return;
-  } 
+  } else if (tempo_atual - tempo_anterior_serial_print < 1000) {
+    return;
+  }
 
   int16_t results = ads.readADC_SingleEnded(0);
   float volt_ads = ads.computeVolts(results);
@@ -146,7 +151,7 @@ void loop() {
 
   new_data = false;
 
-  delay(1000); // Evitar muitos dados no terminal
+  tempo_anterior_serial_print = tempo_atual;
   #endif
 }
 
