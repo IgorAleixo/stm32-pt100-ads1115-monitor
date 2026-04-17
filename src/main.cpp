@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Adafruit_ADS1X15.h>
 #include <Temperature_LM75_Derived.h>
+#include <DataProcessing.h>
 
 // #define USE_ONBOARD_TEMP_SENSOR
 // #define USE_EXTERNAL_ADC_WITH_TIMER
@@ -25,10 +26,7 @@
 // Function prototype
 void readTempIsr();
 void readAdcIsr();
-
-void writeData(int16_t value, float voltage, float resistence, float tempeture);
-float computeResist(float volt_ads);
-float CVD_inverse(float R);
+void blinkLED();
 
 TwoWire wire(PB9, PB8); /* Fios do I2C */
 Adafruit_ADS1115 ads;
@@ -118,7 +116,60 @@ void loop() {
   uint32_t tempo_atual = millis();
 
   if(tempo_atual - tempo_anterior > 1000) {
-    switch (estado_LEDS)
+    blinkLED();
+  }
+
+  #ifdef USE_EXTERNAL_ADC_WITH_ISR
+  if(!new_data) {
+    return;
+  } 
+
+  int16_t results = ads.getLastConversionResults();
+  float volt_ads = ads.computeVolts(results);
+
+  comuputeData(results, volt_ads, serial1);
+
+  new_data = false;
+
+  delay(1000); // Evitar muitos dados no terminal
+  #endif
+
+  #ifdef USE_EXTERNAL_ADC_WITH_TIMER
+  if(!new_data) {
+    return;
+  } 
+
+  int16_t results = ads.readADC_SingleEnded(0);
+  float volt_ads = ads.computeVolts(results);
+  
+  comuputeData(results, volt_ads, serial1);
+
+  new_data = false;
+
+  delay(1000); // Evitar muitos dados no terminal
+  #endif
+}
+
+// ISR to read on board temperature sensor
+void readTempIsr() {
+  serial1.print("Temperature = ");
+  serial1.print(temperature.readTemperatureC());
+  serial1.println(" C");
+}
+
+// ISR to read ADC measurement
+void readAdcIsr() {
+  #ifdef USE_EXTERNAL_ADC_WITH_TIMER
+  new_data = true;
+  #endif
+
+  #ifdef USE_EXTERNAL_ADC_WITH_ISR
+  new_data = true;
+  #endif
+}
+
+void blinkLED() {
+  switch (estado_LEDS)
     {
     case 0:
       digitalWrite(LED1, HIGH);
@@ -148,122 +199,4 @@ void loop() {
 
       break;
     }
-  }
-
-  #ifdef USE_EXTERNAL_ADC_WITH_ISR
-  if(!new_data) {
-    return;
-  } 
-
-  int16_t results = ads.getLastConversionResults();
-  float volt_ads = ads.computeVolts(results);
-
-  float resistence = computeResist(volt_ads); 
-  float tempeture = CVD_inverse(resistence); 
-
-  writeData(results, volt_ads, resistence, tempeture);
-
-  new_data = false;
-
-  delay(1000); // Evitar muitos dados no terminal
-  #endif
-
-  #ifdef USE_EXTERNAL_ADC_WITH_TIMER
-  if(!new_data) {
-    return;
-  } 
-
-  int16_t results = ads.readADC_SingleEnded(0);
-  float volt_ads = ads.computeVolts(results);
-
-  float resistence = computeResist(volt_ads); 
-  float tempeture = CVD_inverse(resistence); 
-
-  writeData(results, volt_ads, resistence, tempeture);
-
-  new_data = false;
-
-  delay(1000); // Evitar muitos dados no terminal
-  #endif
-}
-
-// ISR to read on board temperature sensor
-void readTempIsr() {
-  serial1.print("Temperature = ");
-  serial1.print(temperature.readTemperatureC());
-  serial1.println(" C");
-}
-
-// ISR to read ADC measurement
-void readAdcIsr() {
-  #ifdef USE_EXTERNAL_ADC_WITH_TIMER
-  new_data = true;
-  #endif
-
-  #ifdef USE_EXTERNAL_ADC_WITH_ISR
-  new_data = true;
-  #endif
-}
-
-// Escreve os dados no terminal
-void writeData(int16_t value, float voltage, float resistence, float tempeture) {
-  serial1.print("Valor: "); 
-  serial1.println(value); 
-
-  serial1.print("Tensão: "); 
-  serial1.print(voltage); 
-  serial1.println(" V");
-
-  serial1.print("Resistencia: "); 
-  serial1.print(resistence); 
-  serial1.println(" Ohm");
-
-  serial1.print("Temperatura: "); 
-  serial1.print(tempeture); 
-  serial1.println(" C");
-}
-
-// Calcula a resistencia do PT-100
-float computeResist(float volt_ads) {
-  constexpr uint16_t R4  = 1130;
-  constexpr uint16_t R5  = 11300;
-  constexpr uint16_t R13 = 1210;
-
-  constexpr float Vref = 2.5f;
-  constexpr float Ganho_diferencial = 10.0f;
-
-  // Vp = Vref * R/(R + R4);
-  constexpr float Vn = Vref * R13/(R13 + R5);
-
-  // Volt_ads = Ganho_diferencial*(Vp - Vn)
-  // Vp = Volt_ads/Ganho_diferencial + Vn
-  // R/(R + R4) = (Volt_ads/Ganho_diferencial + Vn)/Vref == aux
-
-  // Antes da medição, existe um amplificador diferencial 
-  // com ganho 10 (INA143).
-  float aux = ((volt_ads - Vref)/Ganho_diferencial + Vn)/Vref;
-  
-  float resistence = R4*aux/(1 - aux);
-
-  // Fatores de calibragem
-  constexpr float A = 0.9182602607f;
-  constexpr float B = 9.974427365f;
-
-  return (resistence - B)/A;
-}
-
-// Função inversa da equação de Callendar-Van Dusen(CVD)
-float CVD_inverse(float R) {
-  constexpr float cnt_A = 3.9083e-3f;
-  constexpr float cnt_B = -5.775e-7f;
-  constexpr float cnt_C = -4.183e-12f;
-  
-  constexpr uint16_t R0  = 100;
-
-  constexpr float a = cnt_B * R0; 
-  constexpr float b = cnt_A * R0;
-  
-  float c = R0 - R;
-
-  return (-b + sqrt(b*b - 4*a*c))/(2*a);
 }
