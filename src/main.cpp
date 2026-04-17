@@ -34,7 +34,6 @@ Generic_LM75 temperature(&wire);
 HardwareSerial serial1(PA10, PA9);
 
 uint32_t tempo_anterior_blink = millis();
-uint32_t tempo_anterior_serial_print = millis();
 uint8_t  estado_LEDS = 0; /* Controla o estado dos LEDS */
 
 #ifdef USE_EXTERNAL_ADC_WITH_ISR
@@ -118,23 +117,21 @@ void loop() {
 
   if(tempo_atual - tempo_anterior_blink > 1000) {
     blinkLED();
+
+    tempo_anterior_blink = tempo_atual;
   }
 
   #ifdef USE_EXTERNAL_ADC_WITH_ISR
   if(!new_data) {
     return;
-  } else if (tempo_atual - tempo_anterior_serial_print < 1000) {
-    return;
   }
 
-  int16_t results = ads.getLastConversionResults();
-  float volt_ads = ads.computeVolts(results);
+    int16_t results = ads.getLastConversionResults();
+    float volt_ads = ads.computeVolts(results);
 
-  comuputeData(results, volt_ads, serial1);
+    comuputeData(results, volt_ads, serial1);
 
-  new_data = false;
-
-  tempo_anterior_serial_print = tempo_atual;
+    new_data = false;
   #endif
 
   #ifdef USE_EXTERNAL_ADC_WITH_TIMER
@@ -150,8 +147,6 @@ void loop() {
   comuputeData(results, volt_ads, serial1);
 
   new_data = false;
-
-  tempo_anterior_serial_print = tempo_atual;
   #endif
 }
 

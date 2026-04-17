@@ -52,20 +52,19 @@ void writeData(
     float resistence, 
     float tempeture) {
 
-  serial1.print("Valor: "); 
-  serial1.println(value); 
+  serial1.print(">");
+  serial1.print("Valor:"); 
+  serial1.print(value); 
 
-  serial1.print("Tensão: "); 
-  serial1.print(voltage); 
-  serial1.println(" V");
+  serial1.print(",Tensao:"); 
+  serial1.print(voltage, 5); 
 
-  serial1.print("Resistencia: "); 
-  serial1.print(resistence); 
-  serial1.println(" Ohm");
+  serial1.print(",Resistencia: "); 
+  serial1.print(resistence, 5);
 
-  serial1.print("Temperatura: "); 
-  serial1.print(tempeture); 
-  serial1.println(" C");
+  serial1.print(",Temperatura: "); 
+  serial1.print(tempeture, 5); 
+  serial1.print("\r\n");
 }
 
 void comuputeData(int16_t valor,
